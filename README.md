@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Done For Teachers
 
-## Getting Started
+Next.js App Router, TypeScript, and Tailwind marketing site with Phase 2 ordering
+and minimal owner operations. The existing Phase 1 design is preserved.
 
-First, run the development server:
+The implementation includes Postgres orders and immutable pricing, private PDF
+uploads, Stripe deposits and balance invoices, signed webhook reconciliation,
+Resend notifications, Supabase owner sign-in, fulfillment/settings/recovery screens,
+and managed maintenance. **Ordering defaults to paused. Provider setup, approved
+business policies, and staging acceptance are required before production launch.**
+No production deployment, live payments, or DNS changes have been performed.
+
+## Local development
+
+Node 22; `npm ci`; configure ignored `.env.local` using `.env.example` and the setup
+guide; `npm run db:migrate`; `npm run dev`. The homepage remains available with
+ordering paused when services are unconfigured. Owner tools are at `/owner`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Unit/workflow tests use a PostgreSQL engine in-process and mocked external APIs;
+they never charge cards or contact real customers. Browser smoke tests exercise the
+unconfigured, closed-to-orders build. They do not replace provider acceptance tests.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Guides
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [Repository audit and architecture](docs/AUDIT.md)
+- [Account setup, migrations, Stripe, email, storage, and deployment](docs/SETUP.md)
+- [Nontechnical owner operating guide](docs/OWNER-GUIDE.md)
+- [Reliability, backups, recovery, deletion, and rollback](docs/OPERATIONS.md)
+- [Launch acceptance and handoff checklist](docs/HANDOFF.md)
+- [Actual validation results and limits](docs/VALIDATION.md)
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Production infrastructure and customer data must belong to the business owner.
+Manual delivery is performed by the owner after verified final payment. Templates
+are one PDF up to 3 MB; no customer accounts or automatic document delivery are built.

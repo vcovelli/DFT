@@ -6,21 +6,40 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
+    "test:e2e": "playwright test",
+    "format:check": "prettier --check \"lib/**/*.ts\" \"app/api/**/*.ts\" \"app/owner/**/*.tsx\" \"app/components/**/*.tsx\" \"tests/**/*.ts\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
     "next": "16.3.5",
+    "pg": "^8.23.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "stripe": "^22.6.2",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "prettier": "^3.9.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=22.12 <23"
   }
 }
