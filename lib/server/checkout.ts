@@ -1,11 +1,12 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { transaction } from "./db";
-import { getOrder, digest, activity } from "./orders";
+import { getOrder, digest, activity, settings } from "./orders";
 import { guardOperation, prepareOperation } from "./operations";
 import { assert } from "./http";
 import { env } from "./env";
-import { stripe } from "./providers";
+import { stripe, storage } from "./providers";
+import { requireOrderingAvailable } from "./availability";
 export async function checkout(id: string, token: string) {
   // Authorization must precede operation creation, including on retries.
   const initial = await getOrder(id);
@@ -16,6 +17,20 @@ export async function checkout(id: string, token: string) {
     ),
     "Order authorization required",
     403,
+  );
+  await requireOrderingAvailable();
+  const config = await settings();
+  assert(
+    !config.paused && config.policyApproved,
+    "New orders are currently paused.",
+    503,
+  );
+  const { data: bucket, error } =
+    await storage().storage.getBucket("templates");
+  assert(
+    !error && bucket && !bucket.public,
+    "Ordering is temporarily unavailable. Your request is saved.",
+    503,
   );
   await prepareOperation(`checkout:${id}`, id);
   return transaction(async (tx) => {

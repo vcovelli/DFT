@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, it, expect } from "vitest";
+import { beforeAll, afterAll, it, expect, afterEach, vi } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -29,7 +29,11 @@ const input = {
   termsAccepted: true,
 };
 beforeAll(async () => {
+  process.env.ORDERING_ENABLED = "true";
   await pg.exec(readFileSync("db/migrations/001_orders.sql", "utf8"));
+  await pg.exec(
+    "CREATE TABLE maintenance_state(id boolean PRIMARY KEY, last_success_at timestamptz, last_failure_at timestamptz); INSERT INTO maintenance_state VALUES(true, now(), null)",
+  );
   await pg.exec(readFileSync("db/migrations/003_adjustments.sql", "utf8"));
   await pg.exec(
     readFileSync("db/migrations/005_email_supersession.sql", "utf8"),
@@ -64,4 +68,27 @@ it("enables RLS on every business table without public policies", async () => {
   );
   expect(rows).toHaveLength(4);
   expect((await db.query("SELECT * FROM pg_policies")).rows).toHaveLength(0);
+});
+
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await db.query("UPDATE maintenance_state SET last_success_at=now()");
+});
+it("default deployment pause preserves an acknowledged request on retry", async () => {
+  const key = randomUUID();
+  const first = await createOrder(input, key, db);
+  vi.stubEnv("ORDERING_ENABLED", "false");
+  await expect(createOrder(input, randomUUID(), db)).rejects.toThrow("paused");
+  expect((await createOrder(input, key, db)).order.id).toBe(first.order.id);
+});
+it("stale maintenance fails closed without deleting existing orders", async () => {
+  await db.query(
+    "UPDATE maintenance_state SET last_success_at=now()-interval '2 days'",
+  );
+  await expect(createOrder(input, randomUUID(), db)).rejects.toThrow(
+    "temporarily unavailable",
+  );
+  expect((await db.query("SELECT id FROM orders")).rows.length).toBeGreaterThan(
+    0,
+  );
 });

@@ -313,8 +313,8 @@ export default function Home({ config }: { config: Settings }) {
           </div>
           <div className="footer-contact">
             <p className="eyebrow">Have a question?</p>
-            <a href="mailto:orders@doneforteachers.com.com">
-              orders@doneforteachers.com.com <span aria-hidden="true">↗</span>
+            <a href="mailto:orders@doneforteachers.com">
+              orders@doneforteachers.com <span aria-hidden="true">↗</span>
             </a>
           </div>
         </div>

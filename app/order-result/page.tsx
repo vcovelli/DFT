@@ -22,7 +22,7 @@ export default async function OrderResult({
         The owner prepares your materials and requests the balance before
         emailing the finished work.
       </p>
-      <a href="mailto:orders@doneforteachers.com.com">Contact Done For Teachers</a>
+      <a href="mailto:orders@doneforteachers.com">Contact Done For Teachers</a>
     </main>
   );
 }

@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
   db: null as unknown as DB,
   upload: vi.fn(),
   remove: vi.fn(),
+  bucket: vi.fn(),
+  balance: vi.fn(),
 }));
 vi.mock("../lib/server/db", () => ({
   db: { query: (s: string, v?: unknown[]) => state.db.query(s, v) },
@@ -23,9 +25,10 @@ vi.mock("../lib/server/db", () => ({
   },
 }));
 vi.mock("../lib/server/providers", () => ({
-  stripe: () => ({}),
+  stripe: () => ({ balance: { retrieve: state.balance } }),
   storage: () => ({
     storage: {
+      getBucket: state.bucket,
       from: (bucket: string) => {
         expect(bucket).toBe("templates");
         return { upload: state.upload, remove: state.remove };
@@ -36,11 +39,13 @@ vi.mock("../lib/server/providers", () => ({
 import { createOrder, getOrder } from "../lib/server/orders";
 import { uploadTemplate } from "../lib/server/files";
 import { maintenance } from "../lib/server/maintenance";
+import { requireOrderingAvailable } from "../lib/server/availability";
 import { defaultSettings } from "../lib/domain";
 const pg = new PGlite();
 let id: string, token: string;
 const pdf = Buffer.from("%PDF-1.4\nexample\n%%EOF");
 beforeAll(async () => {
+  process.env.ORDERING_ENABLED = "true";
   state.db = {
     query: async (s, v) => {
       const r = await pg.query(s, v);
@@ -57,12 +62,21 @@ beforeAll(async () => {
   await pg.exec(
     "CREATE SCHEMA storage;CREATE TABLE storage.objects(name text,bucket_id text,created_at timestamptz)",
   );
+  await pg.exec("CREATE ROLE dft_app NOLOGIN");
+  await pg.exec(readFileSync("db/migrations/007_maintenance.sql", "utf8"));
   await state.db.query("UPDATE business_settings SET config=$1", [
     JSON.stringify({ ...defaultSettings, paused: false, policyApproved: true }),
   ]);
 });
 beforeEach(async () => {
   await state.db.query("TRUNCATE orders CASCADE");
+  await state.db.query(
+    "UPDATE maintenance_state SET lease_until=null,lease_token=null,last_failure_at=null,last_success_at=now()",
+  );
+  state.bucket
+    .mockReset()
+    .mockResolvedValue({ data: { public: false }, error: null });
+  state.balance.mockReset().mockResolvedValue({});
   state.upload.mockReset().mockResolvedValue({ error: null });
   state.remove.mockReset().mockResolvedValue({ error: null });
   const created = await createOrder(
@@ -124,7 +138,7 @@ it("storage failures leave the order retryable", async () => {
   await uploadTemplate(id, token, "lesson.pdf", "application/pdf", pdf);
   expect((await getOrder(id)).template_key).not.toBeNull();
 });
-it("cleans confirmed abandoned unpaid templates and anonymizes their instructions", async () => {
+it("preserves submitted unpaid orders and files across prolonged outages", async () => {
   await uploadTemplate(id, token, "lesson.pdf", "application/pdf", pdf);
   await state.db.query(
     "UPDATE orders SET created_at=now()-interval '8 days' WHERE id=$1",
@@ -132,11 +146,11 @@ it("cleans confirmed abandoned unpaid templates and anonymizes their instruction
   );
   await maintenance();
   const order = await getOrder(id);
-  expect(order.fulfillment).toBe("CANCELLED");
-  expect(order.template_key).toBeNull();
-  expect(order.details).toEqual({});
-  expect(order.customer_email).toBe("deleted@example.invalid");
-  expect(state.remove).toHaveBeenCalledTimes(1);
+  expect(order.fulfillment).toBe("AWAITING_DEPOSIT");
+  expect(order.template_key).not.toBeNull();
+  expect(order.details.instructions).toBe("Use visual examples");
+  expect(order.customer_email).toBe("teacher@example.com");
+  expect(state.remove).not.toHaveBeenCalled();
 });
 it("retains ambiguous interrupted checkouts during cleanup", async () => {
   await uploadTemplate(id, token, "lesson.pdf", "application/pdf", pdf);
@@ -151,4 +165,42 @@ it("retains ambiguous interrupted checkouts during cleanup", async () => {
   await maintenance();
   expect((await getOrder(id)).template_key).not.toBeNull();
   expect(state.remove).not.toHaveBeenCalled();
+});
+
+it("skips overlapping maintenance and does not falsely renew its heartbeat", async () => {
+  await state.db.query(
+    "UPDATE maintenance_state SET lease_until=now()+interval '1 minute',last_success_at=null",
+  );
+  await maintenance();
+  expect(state.balance).not.toHaveBeenCalled();
+  expect(
+    (await state.db.query("SELECT last_success_at FROM maintenance_state"))
+      .rows[0].last_success_at,
+  ).toBeNull();
+});
+it("provider failure releases the lease without renewing maintenance freshness", async () => {
+  const previous = (
+    await state.db.query("SELECT last_success_at FROM maintenance_state")
+  ).rows[0].last_success_at;
+  state.balance.mockRejectedValueOnce(new Error("provider failure"));
+  await expect(maintenance()).rejects.toThrow();
+  const row = (await state.db.query("SELECT * FROM maintenance_state")).rows[0];
+  expect(row.last_success_at).toEqual(previous);
+  await expect(requireOrderingAvailable()).rejects.toThrow(
+    "temporarily unavailable",
+  );
+  expect(row.lease_until).toBeNull();
+  expect(row.last_failure_at).not.toBeNull();
+  expect((await getOrder(id)).customer_email).toBe("teacher@example.com");
+});
+it("retention deletes only terminal-order files and retains the order", async () => {
+  await uploadTemplate(id, token, "lesson.pdf", "application/pdf", pdf);
+  await state.db.query(
+    "UPDATE orders SET fulfillment='DELIVERED',delivered_at=now()-interval '91 days' WHERE id=$1",
+    [id],
+  );
+  await maintenance();
+  expect((await getOrder(id)).template_key).toBeNull();
+  expect((await getOrder(id)).fulfillment).toBe("DELIVERED");
+  expect(state.remove).toHaveBeenCalledTimes(1);
 });

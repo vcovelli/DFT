@@ -3,8 +3,10 @@ import { z } from "zod";
 const schema = z.object({
   DATABASE_URL: z
     .url()
-    .refine((value) =>
-      ["postgres:", "postgresql:"].includes(new URL(value).protocol),
+    .refine(
+      (value) =>
+        URL.canParse(value) &&
+        ["postgres:", "postgresql:"].includes(new URL(value).protocol),
     ),
   DATABASE_CA_CERT: z.string().optional(),
   SUPABASE_URL: z.url(),
@@ -19,10 +21,14 @@ const schema = z.object({
   EMAIL_FROM: z.email(),
   CRON_SECRET: z.string().min(32),
   RATE_LIMIT_SECRET: z.string().min(32),
+  ORDERING_ENABLED: z.enum(["true", "false"]).default("false"),
+  SHOW_DEMO_BANNER: z.enum(["true", "false"]).default("true"),
   ALLOW_LIVE_PAYMENTS: z.enum(["true", "false"]).default("false"),
 });
 export function env() {
-  const e = schema.parse(process.env);
+  const parsed = schema.safeParse(process.env);
+  if (!parsed.success) throw new Error("Server configuration unavailable");
+  const e = parsed.data;
   const origin = new URL(e.APP_URL);
   if (
     origin.username ||
@@ -33,6 +39,8 @@ export function env() {
   )
     throw new Error("APP_URL must be an origin");
   e.APP_URL = origin.origin;
+  if (process.env.VERCEL && e.STRIPE_SECRET_KEY.startsWith("sk_live_"))
+    throw new Error("Staging requires test payments");
   if (
     process.env.NODE_ENV === "production" &&
     !e.APP_URL.startsWith("https://")

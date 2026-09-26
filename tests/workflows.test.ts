@@ -28,7 +28,14 @@ vi.mock("next/headers", () => ({
 vi.mock("../lib/server/env", () => ({
   env: () => ({ APP_URL: "https://example.test" }),
 }));
-vi.mock("../lib/server/providers", () => ({ stripe: () => state.api }));
+vi.mock("../lib/server/providers", () => ({
+  stripe: () => state.api,
+  storage: () => ({
+    storage: {
+      getBucket: async () => ({ data: { public: false }, error: null }),
+    },
+  }),
+}));
 import { createOrder, getOrder, checkUploadAccess } from "../lib/server/orders";
 import { processEvent, summary } from "../lib/server/payments";
 import { checkout } from "../lib/server/checkout";
@@ -180,6 +187,7 @@ function event(
   } as unknown as Stripe.Event;
 }
 beforeAll(async () => {
+  process.env.ORDERING_ENABLED = "true";
   state.db = {
     query: async (s, v) => {
       const r = await pg.query(s, v);
@@ -187,6 +195,9 @@ beforeAll(async () => {
     },
   };
   await pg.exec(readFileSync("db/migrations/001_orders.sql", "utf8"));
+  await pg.exec(
+    "CREATE TABLE maintenance_state(id boolean PRIMARY KEY, last_success_at timestamptz, last_failure_at timestamptz); INSERT INTO maintenance_state VALUES(true, now(), null)",
+  );
   await pg.exec(readFileSync("db/migrations/003_adjustments.sql", "utf8"));
   await pg.exec(
     readFileSync("db/migrations/005_email_supersession.sql", "utf8"),
@@ -467,4 +478,28 @@ it("rejects an unauthorized Checkout request before creating provider objects", 
   );
   await expect(checkout(id, "wrong")).rejects.toThrow("authorization");
   expect(state.api.customers.create).not.toHaveBeenCalled();
+});
+
+it("a later owner pause blocks checkout while retaining the submitted order", async () => {
+  await state.db.query(
+    "UPDATE business_settings SET config=jsonb_set(config,'{paused}','true'::jsonb)",
+  );
+  try {
+    await expect(checkout(id, token)).rejects.toThrow("paused");
+    expect(state.api.checkout.sessions.create).not.toHaveBeenCalled();
+    expect((await getOrder(id)).customer_email).toBe(input.email);
+  } finally {
+    await state.db.query(
+      "UPDATE business_settings SET config=jsonb_set(config,'{paused}','false'::jsonb)",
+    );
+  }
+});
+it("failed notification blocks another checkout without changing payments or orders", async () => {
+  await state.db.query(
+    "INSERT INTO email_outbox(id,order_id,kind,recipient,subject,body,last_error) VALUES($1,$2,'deposit','teacher@example.com','test','test','provider_error')",
+    [randomUUID(), id],
+  );
+  await expect(checkout(id, token)).rejects.toThrow("temporarily unavailable");
+  expect(state.api.checkout.sessions.create).not.toHaveBeenCalled();
+  expect((await getOrder(id)).customer_email).toBe(input.email);
 });

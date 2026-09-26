@@ -6,6 +6,10 @@ import { db } from "@/lib/server/db";
 import { settings } from "@/lib/server/orders";
 import { money } from "@/lib/domain";
 import { Action, SignOut } from "./controls";
+import {
+  orderingEnabled,
+  requireOrderingAvailable,
+} from "@/lib/server/availability";
 import SettingsForm from "./settings-form";
 export const dynamic = "force-dynamic";
 export default async function Owner({
@@ -47,11 +51,47 @@ export default async function Owner({
       "SELECT key,order_id FROM operations WHERE review_required=true ORDER BY created_at LIMIT 30",
     )
   ).rows;
+  let accepting = false;
+  try {
+    await requireOrderingAvailable();
+    accepting = true;
+  } catch {
+    /* display only */
+  }
+  const maintenance = (
+    await db.query(
+      "SELECT last_success_at FROM maintenance_state WHERE id=true",
+    )
+  ).rows[0];
   return (
     <main className="owner-shell">
+      <section className="owner-card">
+        <h2>Service status</h2>
+        <p>
+          {!orderingEnabled()
+            ? "Deployment safety switch: ordering paused."
+            : accepting
+              ? "Connections ready. Business settings still control ordering."
+              : "Ordering paused automatically: maintenance or notifications need attention."}
+        </p>
+        <p>
+          Last completed maintenance:{" "}
+          {maintenance?.last_success_at
+            ? new Date(maintenance.last_success_at).toUTCString()
+            : "Not yet verified"}
+        </p>
+        <p>
+          Existing requests remain saved. Use notification recovery below before
+          reopening.
+        </p>
+      </section>
       <div className="owner-actions">
         <Link href="/">Website</Link>
-        <a href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
+        <a
+          href="https://dashboard.stripe.com/test"
+          target="_blank"
+          rel="noreferrer"
+        >
           Stripe dashboard
         </a>
         <SignOut />

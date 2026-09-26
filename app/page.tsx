@@ -1,6 +1,7 @@
 import Home from "./components/home";
 import { defaultSettings } from "@/lib/domain";
 import { settings } from "@/lib/server/orders";
+import { requireOrderingAvailable } from "@/lib/server/availability";
 export const dynamic = "force-dynamic";
 export default async function Page() {
   // An unconfigured local preview intentionally keeps ordering paused.
@@ -15,6 +16,7 @@ export default async function Page() {
 
   let config = defaultSettings;
   try {
+    await requireOrderingAvailable();
     config = await settings();
   } catch {
     console.warn(

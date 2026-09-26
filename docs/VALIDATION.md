@@ -1,78 +1,89 @@
-# Phase 2 validation record
+# Netlify readiness validation — 26 September 2026
 
-Validated locally on 20 September 2026 with Node 22.15.0, Next 16.3.5,
-Stripe SDK 22.6.2 (API version `2026-08-26.dahlia`), Vitest 4.1.11, PGlite,
-and Chromium through Playwright. No live customer data or real payment details
-were used. No provider accounts, DNS, or production deployment were modified.
+Local checks ran against Next.js 16.3.5, Node 22, Vitest/PGlite and Chromium.
+No provider credentials were entered, no hosted migrations/deployments were run,
+and no domain, live payments or production ordering was enabled. Vercel deployment
+configuration is unchanged. Concurrent contact-address corrections in the shared
+workspace were preserved.
 
-## Actual final command results
+## Final results
 
 | Check | Result |
 | --- | --- |
+| `npm run lint` | Pass |
+| `npm run typecheck` | Pass; Next route type generation and TypeScript |
+| `npm test` | **65 passed**, 7 files |
+| `npm run build` | Pass; all application/API routes generated |
+| `npm run test:e2e` | **5 passed**, Chromium against the production build |
 | `npm run format:check` | Pass |
-| `npm run lint` | Pass, no remaining lint findings |
-| `npm run typecheck` | Pass |
-| `npm test` | **47 passed**, 5 test files |
-| `npm run build` | Pass, production routes generated |
-| `npm run test:e2e` | **4 passed**, Chromium against production build |
-| `npm audit` | **0 vulnerabilities**, including development dependencies |
 | `git diff --check` | Pass |
+| Repository credential-pattern check | No matches for long Stripe keys/signing secrets, private key blocks or credential-bearing Postgres URLs; values were never printed |
+| `git diff -- vercel.json` | Empty; original daily staging schedule preserved |
 
-Next reports an unrelated parent-directory package-lock outside this Git repository
-and ignores it. Playwright reports a harmless NO_COLOR/FORCE_COLOR conflict in this
-environment. The paused homepage emits the expected `ordering_unavailable` code
-when no provider environment is configured. These did not fail any checks.
+The credential-pattern check is a bounded heuristic, not proof that every possible
+secret format is absent. Server modules retain server-only boundaries; no provider
+secrets use NEXT_PUBLIC or Next's public env configuration. Synthetic fixture keys
+are used in tests. Real secret stores were not inspected or exported.
 
-During development, a test-helper type error, framework navigation lint findings,
-and reused fixture IDs were found and corrected. npm 10's optional-peer resolver
-failed while upgrading the test runner. npm 11.6.2 resolved the compatible upgrade;
-non-breaking audit fixes then removed the remaining tooling advisories. The final
-lockfile records the tested dependencies. The failed intermediate attempts are not
-counted as successful validation.
+Expected warnings: Next ignores an unrelated parent-directory package lock;
+Playwright reports NO_COLOR/FORCE_COLOR overlap; the unconfigured homepage logs only
+the stable `ordering_not_configured` code. No npm audit was rerun for this change;
+the previous validation's dependency-audit result is not claimed as current.
 
-## Stage outcomes and changed areas
+## What the automated evidence covers
 
-| Stage | Implementation / principal files | What is verified; remaining dependency |
-| --- | --- | --- |
-| A — audit | `docs/AUDIT.md`, existing design retained in `app/components/home.tsx` | Repository, installed Next guides, provider design reviewed; owner policy decisions remain |
-| B — data / validation | `lib/domain.ts`, `lib/server/{db,orders,http,env}.ts`, `db/migrations/` | Integer pricing, odd-cent rounding, input rejection, duplicate orders, SQL constraints and immutable snapshots tested |
-| C — private storage | `lib/server/files.ts`, upload/download routes, storage migrations | PDF bounds/signatures, scoped tokens, one-file limit, retries, storage failures, private-bucket SQL, cleanup tested with mocked Storage; hosted storage/signing/scanning assessment remains |
-| D — deposits | `lib/server/checkout.ts`, order/Checkout routes, `app/components/order-form.tsx` | Server-derived deposit and duplicate Checkout prevention tested with mocked Stripe; real Stripe test-mode acceptance remains |
-| E — webhooks | `lib/server/payments.ts`, webhook route | Actual SDK signature verification, durable event deduplication, out-of-order payloads, failed/expired payments, wrong relationships, refunds/disputes tested; hosted event delivery remains |
-| F — balances | `lib/server/invoices.ts`, owner action/recovery routes | One invoice/line item on retry, final charge verification, credit-adjusted balance, stale-operation guard tested; real hosted invoice payment remains |
-| G — email | `lib/server/emails.ts`, outbox/supersession migrations | Provider failure preserves payment, acceptance retry deduplication, old-send review, obsolete notice suppression tested; domain verification, inbox/bounce testing remains |
-| H — owner workflow | `app/owner/`, owner routes, Supabase Auth wrapper | Owner-ID checks, actual unauthorized route denial, browser sign-in redirect, settings/fulfillment implementation checked; authenticated hosted owner walkthrough remains |
-| I — hardening | `tests/`, security headers, RLS runtime role, body/rate limits, `vercel.json` | Automated results above; hosted rate-limit headers, multi-connection contention, provider outages and platform cron must be checked in staging |
-| J — handoff | `.env.example`, README, `docs/{SETUP,OWNER-GUIDE,OPERATIONS,HANDOFF}.md` | Concrete setup, operations, rollback, backup and acceptance instructions written; owner account transfer and restore drill remain |
+- Real in-process Postgres migrations, including new 007 lease/heartbeat/RLS schema
+  against a minimal Supabase-owned schema fixture; existing role access checks.
+- Existing pricing/immutability, durable duplicate submissions, scoped PDF handling,
+  payment/refund/dispute reconciliation, signed webhook verification, idempotent
+  checkout/invoices, durable email retries and owner authorization regressions.
+- Missing/default safety flags, live-key refusal, Vercel test-only enforcement,
+  sanitized invalid configuration and hosted origin restrictions.
+- Pause after submission blocks checkout; failed email blocks checkout; saved
+  request retries survive pause; stale maintenance blocks intake.
+- Submitted unpaid instructions and files survive long outages. Retention removes
+  eligible terminal-order templates while preserving the order. A lease prevents
+  overlapping maintenance; provider failure releases it, records failure and
+  immediately closes intake despite a previous successful heartbeat.
+- Public health returns only a boolean and 200/503, with no-store. Cron rejects
+  missing, wrong-length and same-length incorrect bearer tokens before running
+  work. The Netlify caller uses POST/header authorization, no redirects, a timeout,
+  validates its response and sanitizes errors.
+- Browser: paused homepage and visible banner, mobile width, owner login redirect,
+  unauthorized private access, payment return-page wording, security headers,
+  generic unhealthy response and unauthenticated maintenance denial.
 
-## Scope of evidence
+The first test run found expected outdated unpaid-cleanup assertions; they were
+changed to validate preservation. A new environment test caught URL refinement
+throwing before sanitized validation; URL.canParse now guards parsing. Final
+results above were collected after fixes, not from intermediate failed runs.
 
-PGlite runs real PostgreSQL SQL in-process. All six migrations are executed in a
-local test with a **minimal fixture** of Supabase-owned roles/storage tables.
-Anonymous and ordinary authenticated roles cannot read orders; the runtime group
-can access business settings and cannot alter orders. This validates migration SQL
-and the intended grants; it does not validate the live Supabase platform or its
-Storage/Auth configuration. Tests do not reproduce real multi-connection database
-contention or arbitrary provider/network scheduling.
+## Hosted checks remain pending
 
-Stripe, Storage, and email workflow tests use controlled mock responses. The SDK
-signature test uses generated test signatures against exact raw bytes. Browser
-smoke tests exercise the unconfigured build: marketing rendering/mobile width,
-paused ordering, protected owner route redirect, private API denial, return-page
-wording, policy page, and security headers. They do **not** prove a customer can
-complete a real hosted payment, receive email, or sign in to a configured owner
-account. Complete the owner-controlled staging acceptance checklist before launch.
+Local `next build` is not a Netlify deployment or adapter acceptance test. The
+native scheduled function is tested with mocked fetch; actual scheduling, Function
+runtime environment scopes, platform limits and HTTPS routing remain unverified.
+Provider acceptance needs the owner-controlled account and secrets, entered one
+step at a time. See SETUP.md and HANDOFF.md for the provider checklist.
 
-## Release status
+Stripe, Supabase Auth/Storage and Resend calls use mocks in automated workflows.
+PGlite does not reproduce real multi-connection contention, hosted RLS defaults,
+transaction pooler/TLS behavior or quota exhaustion. Browser tests use an
+unconfigured app and do not sign into a live owner account or pay a test invoice.
+The backup procedure was documented, not executed against private data; an isolated
+restore drill remains a launch gate.
 
-**Locally implemented and tested; not approved or verified for production.**
-Ordering defaults to paused, policy approval defaults to false, and live Stripe
-keys are blocked unless explicitly enabled. The requested 50% split is a draft
-configuration, with the odd cent rounded into the deposit and no minimum-order
-policy invented. No owner approval was assumed.
+Netlify Free exhaustion stops requests and webhooks; the code cannot keep a paused
+host online or expire payment URLs while it is offline. Saved orders remain in
+Supabase and Stripe activity must be reconciled after service returns. Resend
+failure detection occurs on actual sends, not predictive quota monitoring. These
+operational limits are documented in OPERATIONS.md; no zero-loss disaster recovery
+or guaranteed uptime is claimed.
 
-Remaining launch dependencies: owner accounts and credentials entered securely;
-hosted migrations and RLS/storage verification; verified sender/OTP email; Stripe
-test-mode end-to-end checks; commercial managed cron setup; approved legal, tax,
-refund, revision, rush and record-retention policies; malware-scanning decision;
-separate file backups and an actual restore drill; explicit production authorization.
+## Release state and next boundary
+
+**Repository prepared and locally validated; hosted deployment/acceptance pending.**
+ORDERING_ENABLED defaults false, owner policy approval remains required,
+SHOW_DEMO_BANNER defaults true and ALLOW_LIVE_PAYMENTS defaults false. No migrations
+run on build. The next assisted step requires the business owner's Netlify account;
+stop for that single provider action before any account setup or secret entry.

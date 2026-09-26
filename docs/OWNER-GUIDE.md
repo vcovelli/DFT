@@ -1,11 +1,25 @@
 # Operating Done For Teachers
 
-Bookmark `https://doneforteachers.com/owner`. Use your configured owner email and the
+Bookmark `/owner` on the current site address (the temporary Netlify address during
+acceptance). This is your only application entry point; it directs you to sign-in.
+Do not use the production domain until separately approved. Use your configured owner email and the
 one-time code sent to your mailbox. You may need a new code after an hour.
+
+The DEMO / STAGING banner means testing only. Ordering remains closed during setup.
+In **Service status**, check the maintenance timestamp and any automatic pause.
+The deployment safety switch can keep ordering paused even if Business settings
+allows orders; ask your technical operator to investigate rather than toggling
+settings repeatedly. Production activation is a separate approval.
+
+All routine app tasks start here: orders, private downloads, fulfillment, business
+settings, notification retries and interrupted-payment recovery. The Stripe link
+opens financial exceptions such as refunds and disputes. You do not need API URLs,
+SQL, a terminal, or separate application admin tools for daily work. Account MFA,
+billing, domain changes and disaster recovery still use the providers with support.
 
 ## Daily order workflow
 
-1. A new paid-order notification arrives at orders@doneforteachers.com.com. Sign in and
+1. A new paid-order notification arrives at orders@doneforteachers.com. Sign in and
    open the order reference. Check the payment column: **DEPOSIT_PAID** is the
    normal starting point. A customer returning from Checkout is not proof of payment.
 2. Read the subject, grade, state, topic, instructions, and preparation deadline
@@ -87,15 +101,16 @@ request and have the customer place a fresh request. Keep the old record for aud
 
 ## Retention and owner responsibilities
 
-Abandoned unpaid requests are anonymized after seven days when Stripe confirms no
-payment; their files are deleted. Ambiguous interrupted operations are retained
-for review. Templates are deleted 90 days after delivery or cancellation. Download
+Submitted unpaid requests and their files are retained for review, including
+requests delayed by outages. Cancel only after checking payment and contacting the
+customer where needed. Ambiguous interrupted operations remain available. Templates are deleted 90 days after delivery or cancellation. Download
 any materials needed for your approved business records before that deadline.
 Order/payment/audit records remain until the approved accounting/legal retention
 period expires; review deletion requests through the process in OPERATIONS.md.
 
-Check pending notifications, disputes, provider service notices, backups, and cron
-health regularly. Keep billing and recovery contacts current. Routine settings,
+Check Service status, pending notifications, disputes and provider notices daily.
+Have the designated technical operator perform the encrypted backup/export procedure
+in BACKUP.md and report the last successful backup and restore drill to you. Keep billing and recovery contacts current. Routine settings,
 fulfillment, refunds, notification retries, and reconciliation are owner tasks;
 provider outages, security incidents, or software upgrades may require qualified
 technical support. The business owns the source and accounts so support need not

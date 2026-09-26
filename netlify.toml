@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+
+# Next.js 16 uses Netlify's automatically installed OpenNext adapter.
+# Runtime secrets belong in the provider UI (Functions scope), never this file.

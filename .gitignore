@@ -44,3 +44,8 @@ next-env.d.ts
 
 /playwright-report/
 /test-results/
+
+/.netlify/
+/backups/
+*.dump
+*.sql.gz

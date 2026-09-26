@@ -3,7 +3,7 @@ import { db, transaction, type DB } from "./db";
 import type { Order } from "./orders";
 import { money } from "../domain";
 import { env } from "./env";
-export const OWNER_EMAIL = "orders@doneforteachers.com.com";
+export const OWNER_EMAIL = "orders@doneforteachers.com";
 export type EmailKind =
   | "deposit"
   | "new_order"
@@ -82,7 +82,7 @@ export const sendMail: MailSender = async (message, key) => {
       text: message.text,
       reply_to: OWNER_EMAIL,
     }),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(5000),
   });
   if (!response.ok) throw new Error("mail_provider_error");
   const result = await response.json();

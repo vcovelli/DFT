@@ -6,7 +6,7 @@ and minimal owner operations. The existing Phase 1 design is preserved.
 The implementation includes Postgres orders and immutable pricing, private PDF
 uploads, Stripe deposits and balance invoices, signed webhook reconciliation,
 Resend notifications, Supabase owner sign-in, fulfillment/settings/recovery screens,
-and managed maintenance. **Ordering defaults to paused. Provider setup, approved
+and scheduled maintenance on Netlify Free, with Vercel staging preserved. **Ordering defaults to paused. Provider setup, approved
 business policies, and staging acceptance are required before production launch.**
 No production deployment, live payments, or DNS changes have been performed.
 
@@ -32,6 +32,8 @@ unconfigured, closed-to-orders build. They do not replace provider acceptance te
 
 - [Repository audit and architecture](docs/AUDIT.md)
 - [Account setup, migrations, Stripe, email, storage, and deployment](docs/SETUP.md)
+- [Production variable inventory and rotation](docs/ENVIRONMENT.md)
+- [Supabase Free export and restore](docs/BACKUP.md)
 - [Nontechnical owner operating guide](docs/OWNER-GUIDE.md)
 - [Reliability, backups, recovery, deletion, and rollback](docs/OPERATIONS.md)
 - [Launch acceptance and handoff checklist](docs/HANDOFF.md)

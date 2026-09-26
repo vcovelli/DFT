@@ -7,12 +7,13 @@ has been deployed or connected to a production account by this implementation.**
 
 | Service | Required owner | Purpose / access |
 | --- | --- | --- |
-| Vercel team and billing | DFT business owner | Hosting, environment, logs, managed cron |
+| Netlify Free account | DFT business owner | Production candidate hosting, functions, schedule and quota notices |
+| Vercel team and billing | DFT business owner | Existing staging only; leave deployment connection and daily cron intact |
 | Supabase organization and project | DFT business owner | Postgres, private files, owner Auth |
 | Stripe account and bank account | DFT business owner | Deposits, invoices, refunds, disputes |
 | Resend organization and billing | DFT business owner | Transactional email and delivery diagnostics |
 | doneforteachers.com registrar / DNS | DFT business owner | Domain, HTTPS, sender verification |
-| orders@doneforteachers.com.com | DFT business owner | Order notifications and customer replies |
+| orders@doneforteachers.com | DFT business owner | Order notifications and customer replies |
 | Source repository / deployment connection | DFT business owner or business organization | Source, releases, rollback |
 | Backup destination | DFT business owner | Encrypted database and storage recovery copies |
 
@@ -27,24 +28,9 @@ Use Node 22 and `npm ci`. Copy `.env.example` to ignored `.env.local` and enter
 **test** credentials using a password manager. All example entries are names only.
 Do not paste secrets into source, issues, support tickets, or chat.
 
-| Variable | Meaning |
-| --- | --- |
-| DATABASE_URL | Supabase pooled Postgres URL for the dedicated runtime login |
-| MIGRATION_DATABASE_URL | Migration administrator URL; local setup only, omit from Vercel runtime |
-| DATABASE_CA_CERT | Supabase CA certificate if required; literal `\n` is accepted |
-| SUPABASE_URL | Owner's project URL |
-| SUPABASE_SECRET_KEY | Server secret/service key for Storage; never public |
-| SUPABASE_ANON_KEY | Auth publishable/anon key, used server-side |
-| OWNER_USER_ID | Exact UUID of the invited, confirmed owner in Supabase Auth |
-| OWNER_LOGIN_EMAIL | Owner's email for one-time sign-in codes |
-| APP_URL | Exact canonical origin, HTTPS in production, no trailing slash |
-| STRIPE_SECRET_KEY | `sk_test_…` during acceptance testing |
-| STRIPE_WEBHOOK_SECRET | Secret for this environment's webhook destination |
-| RESEND_API_KEY | Owner's restricted sending key |
-| EMAIL_FROM | Verified domain email address (not a Gmail sender) |
-| CRON_SECRET | Random secret, at least 32 characters, for managed maintenance |
-| RATE_LIMIT_SECRET | Independent random secret, at least 32 characters; do not casually rotate during active checkouts |
-| ALLOW_LIVE_PAYMENTS | `false` for staging; only `true` after explicit production approval |
+Use [ENVIRONMENT.md](ENVIRONMENT.md) for the complete production inventory, scopes,
+providers and rotation instructions. Keep ORDERING_ENABLED=false,
+SHOW_DEMO_BANNER=true and ALLOW_LIVE_PAYMENTS=false. No live keys are needed.
 
 Environment validation is lazy so builds need no credentials. Runtime services
 fail closed. An unconfigured homepage remains available with ordering paused.
@@ -52,7 +38,8 @@ fail closed. An unconfigured homepage remains available with ordering paused.
 ## Supabase database and storage
 
 1. Owner creates separate staging and production projects in an appropriate
-   region. Enable backups/PITR on a plan that meets the business recovery target.
+   region. Use [BACKUP.md](BACKUP.md) for Supabase Free exports and restore drills;
+   paid managed backups/PITR are optional future upgrades, not Free features.
 2. Set `MIGRATION_DATABASE_URL` to the migration administrator connection. Run
    `npm run db:migrate`. The runner records applied files and applies each once
    inside a transaction with a migration lock. Never edit an applied migration;
@@ -65,14 +52,20 @@ fail closed. An unconfigured homepage remains available with ordering paused.
    role with a generated password and membership in `dft_app`. It must have no
    superuser, database creation, role creation, replication, or BYPASSRLS powers.
    Place its pooled connection URL in `DATABASE_URL`. Keep the administrator URL
-   out of Vercel. Verify the runtime login can read settings and write an order,
+   out of both hosting runtimes. Use the Supabase **transaction pooler** runtime
+   endpoint for serverless connections (normally port 6543; confirm in Connect).
+   No named prepared statements or session-level locks are used at runtime. The
+   application pool is capped at two connections per instance, with verified TLS
+   and timeouts; autoscaling still multiplies pools. Transaction limits use SET
+   LOCAL, not session startup parameters that may be incompatible with pooling. Migrations use a direct or
+   session connection. Verify the runtime login can read settings and write an order,
    but cannot read `auth.users` or alter tables. Supabase pooler username formatting
    varies; use the project's connection instructions for custom database roles.
 5. Confirm Storage `templates` is private, maximum 3 MB, PDF MIME only. Do not add
    public read/write policies or make this bucket public. Service-key operations
    are confined to server modules. Downloads are signed for 60 seconds and forced
    as attachments. Never copy those links into notification emails.
-6. Core SQL migrations 001, 003, 005, and 006 are exercised by PGlite tests. The Supabase-specific
+6. All seven migrations are exercised by PGlite with a minimal Supabase fixture. The Supabase-specific
    bucket and role/policy migrations 002 and 004 also run against a minimal local
    Supabase-schema fixture. They still require staging execution and RLS checks
    before launch; local tests do not prove hosted Supabase configuration.
@@ -85,7 +78,7 @@ fail closed. An unconfigured homepage remains available with ordering paused.
    Configure the **Magic Link** email template to display `{{ .Token }}` as a
    one-time code; the app uses email OTP, not a callback link. Configure the site
    URL, provider OTP expiration, send-rate limits, and authentication logs.
-3. Open `/owner/login`, request a code, and verify it. Every protected read/write
+3. Open `/owner`, request a code, and verify it. Every protected read/write
    calls Supabase `getUser` and checks the confirmed UUID. Session cookies are
    HttpOnly, Secure in production, SameSite Strict, and last at most one hour.
    Sign-out removes the local cookie. Supabase account/session revocation is the
@@ -131,30 +124,93 @@ Owner verifies a sending domain/subdomain, such as `mail.doneforteachers.com`, i
 Resend. Add only the exact DNS records provided by Resend after explicit permission
 from the domain owner. Review SPF/DKIM/DMARC and test delivery to real owner-controlled
 mailboxes. `EMAIL_FROM` is the verified domain identity; reply-to and owner
-notifications use orders@doneforteachers.com.com. Sending as unverified Gmail is blocked.
+notifications use orders@doneforteachers.com. Sending as unverified Gmail is blocked.
 The app stores provider acceptance IDs and failed attempts. It does not claim
 inbox delivery or implement Resend bounce webhooks: owner monitors bounce and
 suppression events in Resend and contacts customers when needed.
 
-## Vercel and release gates
+## Netlify Free production candidate (Next.js 16)
 
-Import the business-owned repository into the business-owned team. Use Node 22,
-`npm ci`, `npm run build`, and Next.js preset. Add server secrets for each environment
-separately. Staging uses Stripe test mode and separate database/storage resources.
-Never share production data with preview deployments. Connect the production domain
-only with explicit owner authorization. Enforce one canonical `APP_URL` origin.
+The repository keeps Next 16.3.5 / Node 22. `netlify.toml` sets `npm run build`
+and `.next` as publish directory. Netlify automatically installs its current
+OpenNext adapter for modern Next.js. Do not use the legacy v4 runtime, static
+export, `out`, or an SPA catch-all redirect. There is no Vercel-specific database,
+filesystem, or Edge dependency. Runtime routes remain Node handlers. Netlify
+supports App Router routes, streaming and Next `after`:
+[adapter documentation](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/).
 
-`vercel.json` schedules `/api/cron` every ten minutes. This needs a Vercel plan that
-supports that frequency for commercial use; owner approves plan cost. Vercel sends
-`Authorization: Bearer CRON_SECRET`. Confirm the schedule actually runs. Webhooks
-also attempt email delivery using Next's managed `after` callback. Durable queue
-retries and retention cleanup do not depend on a developer machine. The owner can
-run maintenance from the dashboard if the schedule is interrupted.
+Local code preparation does not create a provider deployment. The assisted setup
+must stop at each provider action or secret entry and present exactly one action
+at a time; this is the reference procedure, not a request to enter every secret now.
 
-Run all local checks and the acceptance checklist. Review terms, privacy, tax,
-refunds, revisions, rush timing, founder claims, and retention. Approve the deposit
-split (draft 50%, odd cent rounded up), backup recovery target, and manual delivery.
-Then obtain explicit authorization to deploy production and enable live Stripe.
-Only after that set production keys/secret, `ALLOW_LIVE_PAYMENTS=true`, approve
-policies in owner settings, and unpause. The config checkbox is not a substitute
-for completing account setup and staging verification.
+1. Owner uses their Netlify Free account and imports this repository, leaving the
+   existing Vercel integration connected. Use a dedicated production branch/site
+   configuration and a temporary `netlify.app` URL. No custom domain attachment.
+2. Verify Node 22, the committed build settings and auto-detected Next.js adapter.
+   Keep production application credentials out of preview/branch contexts. An
+   initial build can succeed without credentials and shows paused ordering/banner.
+3. Enter each required runtime variable directly in Netlify, following the inventory
+   one at a time. Use a separate production-candidate Supabase project, test Stripe
+   credentials and a separate webhook endpoint; never repoint Vercel staging.
+4. Apply all seven migrations with the local administrator tool before runtime
+   checks. Migration 007 adds a private maintenance lease/heartbeat table. Neither
+   deployment runs migrations automatically. Then verify `/api/health` returns
+   HTTP 200 and exactly `{"ok":true}`; unconfigured/failed DB returns 503 with false.
+   It checks configuration, parsed application settings and the current schema,
+   not all external providers or permission to open ordering.
+5. Verify the native `maintenance` function has its Scheduled badge. It runs every
+   ten minutes (UTC minutes 7,17,27,37,47,57) on the published Netlify deployment;
+   previews do not schedule automatically. Run it once from Netlify and verify
+   the completion timestamp in `/owner`. It POSTs to `/api/cron` using a bearer
+   header, rejects redirects and times out at 25 seconds. No URL contains a secret.
+6. Complete the hosted test-mode checks in HANDOFF.md. Keep the safety switch false,
+   banner visible and live payments disabled until a *separate* acceptance/launch
+   authorization. Controlled test ordering also needs explicit owner authorization
+   to temporarily open the test environment; this task leaves it closed.
+
+Netlify scheduled functions have a 30-second limit, ordinary functions 60 seconds,
+and binary request payloads effectively 4.5 MB. The 3 MB PDF cap is retained.
+Maintenance uses small batches, a 20-second soft work budget, five-second provider
+requests and a two-minute durable lease. A slow database can still cause a timeout;
+work remains retryable and stale heartbeat blocks new intake. `maxDuration` is not
+a promise to extend the platform limit. Validate a maximum-size PDF, raw signed
+webhook body and actual cron duration on Netlify before launch.
+[function limits](https://docs.netlify.com/build/functions/configuration/),
+[scheduling](https://docs.netlify.com/build/functions/scheduled-functions/).
+
+Netlify/non-Vercel request throttling deliberately uses a shared database bucket,
+ignoring spoofable forwarded headers. This conservatively permits 15 new request
+attempts/hour, 30 checkout attempts/hour, 30 upload attempts/hour and 10 owner OTP
+attempts/hour across the site. Existing Vercel trusted-header behavior is retained.
+This is suitable only for low volume; shared-IP throttling is an availability
+tradeoff and must be revisited before increasing traffic. Rate limiting cannot
+prevent all hosting-credit exhaustion because rejected requests still invoke code.
+
+## Preserve Vercel staging
+
+Leave `vercel.json` unchanged: it schedules GET `/api/cron` **daily at 12:00 UTC**.
+The previous guide's ten-minute description was incorrect. Retain the Vercel site,
+its environment settings and staging Supabase/Stripe endpoint. Vercel supplies
+`Authorization: Bearer CRON_SECRET`; do not reuse the production candidate secret.
+Set/retain the default safety flags (paused, banner on, live payments off). The app
+also rejects live Stripe keys whenever the Vercel platform marker is present.
+The staging heartbeat permits 26 hours for this daily schedule; other hosts permit
+two hours. Owner maintenance is available from `/owner` on either platform.
+
+## Free-tier operational limits and release gates
+
+Check the actual account's current allowance rather than assuming legacy quotas.
+Netlify credit-based Free currently supplies 300 monthly credits; production builds,
+requests, compute and bandwidth draw on the allowance. Exhaustion pauses all sites
+on that team, including owner tools and webhooks. Free cannot buy extra credits;
+wait for reset or obtain approval for a paid upgrade. Avoid repeated production
+builds and minute-by-minute health polling. Use hourly health checks if configured,
+provider quota emails and daily owner review. No guaranteed uptime is implied.
+[credit policy](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/),
+[paused-site recovery](https://docs.netlify.com/manage/accounts-and-billing/billing/resume-paused-projects/).
+
+Review the owner's policies, notification mailbox, sender/OTP delivery, Stripe
+verification, backup restore evidence and test-mode acceptance before any launch.
+The contact address is `orders@doneforteachers.com`; verify owner control and
+delivery before sending production messages. No production domain connection, live key,
+live payment activation or production unpause is authorized by this preparation.

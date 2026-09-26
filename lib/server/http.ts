@@ -53,10 +53,13 @@ export async function jsonBody(request: Request) {
   }
 }
 export async function rateLimit(request: Request, scope: string, limit = 15) {
-  // Vercel overwrites x-vercel-forwarded-for. Ignore spoofable x-forwarded-for.
+  // Vercel overwrites x-vercel-forwarded-for. Other hosts deliberately share
+  // a conservative bucket; never trust a caller-supplied forwarded IP.
   const ip = process.env.VERCEL
     ? request.headers.get("x-vercel-forwarded-for") || "unknown"
-    : "local";
+    : process.env.NETLIFY
+      ? "netlify-shared"
+      : "local";
   const key = createHmac("sha256", env().RATE_LIMIT_SECRET)
     .update(`${scope}:${ip}:${Math.floor(Date.now() / 3600000)}`)
     .digest("hex");

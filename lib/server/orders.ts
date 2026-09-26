@@ -16,6 +16,7 @@ import {
 } from "../domain";
 import { db, transaction, type DB } from "./db";
 import { assert } from "./http";
+import { requireOrderingAvailable } from "./availability";
 export interface Order extends QueryResultRow {
   id: string;
   reference: string;
@@ -109,6 +110,7 @@ export async function createOrder(
       );
       return { order: existing, token: accessToken ?? null };
     }
+    await requireOrderingAvailable(tx);
     const config = await settings(tx);
     assert(
       !config.paused && config.policyApproved,

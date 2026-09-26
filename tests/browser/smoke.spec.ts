@@ -5,6 +5,7 @@ test("marketing page renders and ordering fails closed without account setup", a
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await expect(page.getByRole("status")).toContainText("DEMO / STAGING");
   await expect(
     page.getByRole("heading", { name: "Your lessons. Done." }),
   ).toBeVisible();
@@ -57,4 +58,18 @@ test("security headers and policy notice are served", async ({
   await expect(
     page.getByRole("heading", { name: "Order terms & privacy" }),
   ).toBeVisible();
+});
+
+test("health and maintenance expose no private diagnostics", async ({
+  request,
+}) => {
+  const health = await request.get("/api/health");
+  expect(health.status()).toBe(503);
+  expect(await health.json()).toEqual({ ok: false });
+  expect(health.headers()["cache-control"]).toBe("no-store");
+  for (const method of ["get", "post"] as const) {
+    const response = await request[method]("/api/cron");
+    expect(response.status()).toBe(401);
+    expect(await response.json()).toEqual({ error: "Unauthorized" });
+  }
 });
