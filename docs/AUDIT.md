@@ -35,7 +35,7 @@ Policy changes affect new orders only. No automatic delivery.
 
 Required owner accounts: Vercel, Supabase, Stripe, Resend, domain registrar/DNS,
 and business mailbox. Owner authenticates and enters secrets in provider settings,
-never source files or chat. Notification destination: doneforteachers@gmail.com.
+never source files or chat. Notification destination: orders@doneforteachers.com.com.
 Sending identity must be verified on an owner-controlled domain.
 
 Launch also requires approved terms/privacy, refund/revision/rush policies, tax

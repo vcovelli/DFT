@@ -12,7 +12,7 @@ has been deployed or connected to a production account by this implementation.**
 | Stripe account and bank account | DFT business owner | Deposits, invoices, refunds, disputes |
 | Resend organization and billing | DFT business owner | Transactional email and delivery diagnostics |
 | doneforteachers.com registrar / DNS | DFT business owner | Domain, HTTPS, sender verification |
-| doneforteachers@gmail.com | DFT business owner | Order notifications and customer replies |
+| orders@doneforteachers.com.com | DFT business owner | Order notifications and customer replies |
 | Source repository / deployment connection | DFT business owner or business organization | Source, releases, rollback |
 | Backup destination | DFT business owner | Encrypted database and storage recovery copies |
 
@@ -131,7 +131,7 @@ Owner verifies a sending domain/subdomain, such as `mail.doneforteachers.com`, i
 Resend. Add only the exact DNS records provided by Resend after explicit permission
 from the domain owner. Review SPF/DKIM/DMARC and test delivery to real owner-controlled
 mailboxes. `EMAIL_FROM` is the verified domain identity; reply-to and owner
-notifications use doneforteachers@gmail.com. Sending as unverified Gmail is blocked.
+notifications use orders@doneforteachers.com.com. Sending as unverified Gmail is blocked.
 The app stores provider acceptance IDs and failed attempts. It does not claim
 inbox delivery or implement Resend bounce webhooks: owner monitors bounce and
 suppression events in Resend and contacts customers when needed.

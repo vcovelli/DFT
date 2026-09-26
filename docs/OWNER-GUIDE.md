@@ -5,7 +5,7 @@ one-time code sent to your mailbox. You may need a new code after an hour.
 
 ## Daily order workflow
 
-1. A new paid-order notification arrives at doneforteachers@gmail.com. Sign in and
+1. A new paid-order notification arrives at orders@doneforteachers.com.com. Sign in and
    open the order reference. Check the payment column: **DEPOSIT_PAID** is the
    normal starting point. A customer returning from Checkout is not proof of payment.
 2. Read the subject, grade, state, topic, instructions, and preparation deadline

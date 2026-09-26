@@ -3,7 +3,7 @@ import { db, transaction, type DB } from "./db";
 import type { Order } from "./orders";
 import { money } from "../domain";
 import { env } from "./env";
-export const OWNER_EMAIL = "doneforteachers@gmail.com";
+export const OWNER_EMAIL = "orders@doneforteachers.com.com";
 export type EmailKind =
   | "deposit"
   | "new_order"

@@ -130,8 +130,8 @@ export default function OrderForm({ config }: { config: Settings }) {
         <h3>Orders are temporarily paused</h3>
         <p>
           Please contact{" "}
-          <a href="mailto:doneforteachers@gmail.com">
-            doneforteachers@gmail.com
+          <a href="mailto:orders@doneforteachers.com.com">
+            orders@doneforteachers.com.com
           </a>{" "}
           for availability.
         </p>

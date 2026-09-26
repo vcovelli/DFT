@@ -17,7 +17,7 @@ export default function Policies() {
         materials. Turnaround describes preparation, not automatic delivery.
       </p>
       <p>
-        Contact doneforteachers@gmail.com before ordering to clarify scope,
+        Contact orders@doneforteachers.com.com before ordering to clarify scope,
         revisions, rush availability, cancellations, or refunds. Refunds require
         a separate review and are not automatically issued when an order is
         cancelled.
@@ -42,7 +42,7 @@ export default function Policies() {
       </p>
       <p>
         Questions:{" "}
-        <a href="mailto:doneforteachers@gmail.com">doneforteachers@gmail.com</a>
+        <a href="mailto:orders@doneforteachers.com.com">orders@doneforteachers.com.com</a>
       </p>
     </main>
   );
