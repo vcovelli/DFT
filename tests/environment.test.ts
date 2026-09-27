@@ -51,3 +51,12 @@ it("rejects credential-bearing and non-HTTPS hosted origins", () => {
   vi.stubEnv("NODE_ENV", "production");
   expect(() => env()).toThrow("HTTPS required");
 });
+
+it("rejects Supabase API paths before the SDK builds invalid Auth URLs", () => {
+  vi.stubEnv("SUPABASE_URL", "https://example.test/rest/v1/");
+  expect(() => env()).toThrow(
+    "SUPABASE_URL must be the project origin without an API path",
+  );
+  vi.stubEnv("SUPABASE_URL", "https://example.test/");
+  expect(env().SUPABASE_URL).toBe("https://example.test");
+});

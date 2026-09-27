@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   services,
   money,
@@ -10,26 +10,41 @@ import {
   type Snapshot,
   type OrderInput,
 } from "@/lib/domain";
+import { requestJson } from "@/app/lib/request";
 type Prepared = {
   id: string;
   reference: string;
   token: string;
   pricing: Snapshot;
 };
-async function api(url: string, init: RequestInit) {
-  const response = await fetch(url, init);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Please try again.");
-  return data;
-}
-export default function OrderForm({ config }: { config: Settings }) {
-  const [service, setService] = useState<Service>(config.available[0]);
+export default function OrderForm({
+  config,
+  service,
+  onServiceChange,
+  onLockChange,
+}: {
+  config: Settings;
+  service: Service;
+  onServiceChange: (service: Service) => void;
+  onLockChange: (locked: boolean) => void;
+}) {
   const [duration, setDuration] = useState("weekly");
   const [rush, setRush] = useState(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [prepared, setPrepared] = useState<Prepared | null>(null);
   const locked = useRef(false);
+  const priorRequest = useRef<{ key: string; fingerprint: string } | null>(
+    null,
+  );
+  const review = useRef<HTMLDivElement>(null);
+  const feedback = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (prepared) review.current?.focus();
+  }, [prepared]);
+  useEffect(() => {
+    if (error) feedback.current?.focus();
+  }, [error]);
   const flat = service === "completeUnit" || service === "assessment";
   const estimate = quote(
     { service, duration: flat ? "unit" : duration, rush } as OrderInput,
@@ -39,6 +54,7 @@ export default function OrderForm({ config }: { config: Settings }) {
     event.preventDefault();
     if (locked.current) return;
     locked.current = true;
+    onLockChange(true);
     setBusy(true);
     setError("");
     try {
@@ -46,6 +62,14 @@ export default function OrderForm({ config }: { config: Settings }) {
       const file = form.get("template") as File;
       if (file?.size > MAX_FILE)
         throw new Error("Please select one PDF up to 3 MB.");
+      if (
+        file?.size &&
+        (!file.name.toLowerCase().endsWith(".pdf") ||
+          (file.type && file.type !== "application/pdf"))
+      )
+        throw new Error(
+          "Please choose a PDF file. Other file types cannot be uploaded.",
+        );
       const payload = {
         name: form.get("name"),
         email: form.get("email"),
@@ -75,23 +99,43 @@ export default function OrderForm({ config }: { config: Settings }) {
           ),
         ),
       ).join("");
-      const prior = JSON.parse(sessionStorage.getItem("dft-request") || "null");
+      let prior = priorRequest.current;
+      if (!prior) {
+        try {
+          prior = JSON.parse(sessionStorage.getItem("dft-request") || "null");
+        } catch {
+          /* Storage may be unavailable in private browsing. */
+        }
+      }
       const key =
-        prior?.fingerprint === fingerprint ? prior.key : crypto.randomUUID();
-      sessionStorage.setItem(
-        "dft-request",
-        JSON.stringify({ key, fingerprint }),
-      );
-      const order = await api("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-        body: JSON.stringify(payload),
-      });
-      if (file?.size && !order.hasTemplate)
-        await api(`/api/orders/${order.id}/template`, {
+        prior?.fingerprint === fingerprint && typeof prior.key === "string"
+          ? prior.key
+          : crypto.randomUUID();
+      priorRequest.current = { key, fingerprint };
+      try {
+        sessionStorage.setItem(
+          "dft-request",
+          JSON.stringify(priorRequest.current),
+        );
+      } catch {
+        /* The in-memory key still protects retries in this tab. */
+      }
+      const order = await requestJson<Prepared & { hasTemplate: boolean }>(
+        "/api/orders",
+        {
           method: "POST",
           headers: {
-            "Content-Type": file.type,
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (file?.size && !order.hasTemplate)
+        await requestJson(`/api/orders/${order.id}/template`, {
+          method: "POST",
+          headers: {
+            "Content-Type": file.type || "application/pdf",
             "X-File-Name": encodeURIComponent(file.name),
             "X-Order-Token": order.token,
           },
@@ -99,6 +143,7 @@ export default function OrderForm({ config }: { config: Settings }) {
         });
       setPrepared(order);
     } catch (e) {
+      onLockChange(false);
       setError(
         e instanceof Error ? e.message : "Unable to prepare this order.",
       );
@@ -113,10 +158,13 @@ export default function OrderForm({ config }: { config: Settings }) {
     setBusy(true);
     setError("");
     try {
-      const result = await api(`/api/orders/${prepared.id}/checkout`, {
-        method: "POST",
-        headers: { "X-Order-Token": prepared.token },
-      });
+      const result = await requestJson<{ url: string }>(
+        `/api/orders/${prepared.id}/checkout`,
+        {
+          method: "POST",
+          headers: { "X-Order-Token": prepared.token },
+        },
+      );
       window.location.assign(result.url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to open Checkout.");
@@ -139,7 +187,17 @@ export default function OrderForm({ config }: { config: Settings }) {
     );
   const summary = prepared?.pricing || estimate;
   return (
-    <form className="order-form" onSubmit={submit}>
+    <form className="order-form" onSubmit={submit} aria-busy={busy}>
+      <ol className="order-progress" aria-label="Order progress">
+        <li aria-current={!prepared ? "step" : undefined}>1. Your request</li>
+        <li aria-current={prepared ? "step" : undefined}>
+          2. Review & deposit
+        </li>
+      </ol>
+      <p className="field-help">
+        Review your final price before paying. All fields are required except
+        the PDF template and rush service.
+      </p>
       <fieldset disabled={busy || !!prepared}>
         <legend>Tell us about your request</legend>
         <div className="form-grid">
@@ -161,11 +219,13 @@ export default function OrderForm({ config }: { config: Settings }) {
               required
               maxLength={254}
               autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
             />
           </label>
           <label>
-            Subject
-            <select name="subject" required>
+            <span id="subject-label">Subject</span>
+            <select name="subject" required aria-labelledby="subject-label">
               <option value="">Select a subject</option>
               {[
                 "Math",
@@ -181,8 +241,8 @@ export default function OrderForm({ config }: { config: Settings }) {
             </select>
           </label>
           <label>
-            Grade band
-            <select name="grade" required>
+            <span id="grade-label">Grade band</span>
+            <select name="grade" required aria-labelledby="grade-label">
               <option value="">Select a grade</option>
               {["Grade 1–2", "Grade 3–5", "Grade 6–8", "Grade 9–12"].map(
                 (s) => (
@@ -193,13 +253,22 @@ export default function OrderForm({ config }: { config: Settings }) {
           </label>
           <label>
             State or territory
-            <input name="state" required minLength={2} maxLength={80} />
+            <input
+              name="state"
+              required
+              minLength={2}
+              maxLength={80}
+              autoComplete="address-level1"
+              placeholder="e.g. Ohio"
+            />
           </label>
           <label>
-            Service
+            <span id="service-label">Service</span>
             <select
+              aria-labelledby="service-label"
+              id="order-service"
               value={service}
-              onChange={(e) => setService(e.target.value as Service)}
+              onChange={(e) => onServiceChange(e.target.value as Service)}
             >
               {config.available.map((s) => (
                 <option value={s} key={s}>
@@ -210,8 +279,9 @@ export default function OrderForm({ config }: { config: Settings }) {
           </label>
           {!flat && (
             <label>
-              Duration
+              <span id="duration-label">Duration</span>
               <select
+                aria-labelledby="duration-label"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
               >
@@ -234,9 +304,10 @@ export default function OrderForm({ config }: { config: Settings }) {
             minLength={5}
             maxLength={6000}
             rows={5}
+            aria-describedby="instructions-help"
           />
         </label>
-        <p>
+        <p id="instructions-help" className="field-help">
           Describe the learning goals. Do not include student names, grades,
           disability information, or other student records.
         </p>
@@ -272,9 +343,15 @@ export default function OrderForm({ config }: { config: Settings }) {
           </span>
         </label>
       </fieldset>
-      <div className="order-summary">
+      <div
+        className="order-summary"
+        id="order-review"
+        ref={review}
+        tabIndex={-1}
+        aria-label="Order price summary"
+      >
         {prepared && (
-          <p>
+          <p className="saved-reference" role="status">
             Order {prepared.reference} is saved. Please confirm the final price
             below.
           </p>
@@ -306,7 +383,16 @@ export default function OrderForm({ config }: { config: Settings }) {
           {busy ? "Saving your request…" : "Review final price"}
         </button>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p
+          className="form-feedback is-error"
+          role="alert"
+          ref={feedback}
+          tabIndex={-1}
+        >
+          {error}
+        </p>
+      )}
     </form>
   );
 }

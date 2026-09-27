@@ -11,7 +11,8 @@
     "test": "vitest run",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "test:e2e": "playwright test",
-    "format:check": "prettier --check \"lib/**/*.ts\" \"app/api/**/*.ts\" \"app/owner/**/*.tsx\" \"app/components/**/*.tsx\" \"tests/**/*.ts\""
+    "format:check": "prettier --check \"lib/**/*.ts\" \"app/api/**/*.ts\" \"app/owner/**/*.tsx\" \"app/components/**/*.tsx\" \"tests/**/*.ts\"",
+    "test:ui": "playwright test --config=playwright.ui.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

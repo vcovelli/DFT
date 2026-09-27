@@ -35,7 +35,27 @@ export const POST = endpoint(async (request) => {
       email: body.email,
       options: { shouldCreateUser: false },
     });
-    assert(!error, "Unable to send a sign-in code. Please retry later.", 503);
+    if (error) {
+      const code = error.code || "unknown";
+      console.error(
+        JSON.stringify({
+          level: "error",
+          code: "owner_code_failed",
+          providerCode: /^[a-z_]+$/.test(code) ? code : "unknown",
+          status: error.status,
+        }),
+      );
+      const throttled = error.status === 429;
+      assert(
+        false,
+        code === "over_email_send_rate_limit"
+          ? "The email sending limit has been reached. Please wait before requesting another code."
+          : throttled
+            ? "Please wait at least a minute before requesting another code."
+            : "Unable to send a sign-in code. Please retry later. If this continues, check the Supabase Auth email settings and logs.",
+        throttled ? 429 : 503,
+      );
+    }
     return Response.json({ sent: true });
   }
   const { data, error } = await client.auth.verifyOtp({

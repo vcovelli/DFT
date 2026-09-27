@@ -1,5 +1,7 @@
+"use client";
+import { useState } from "react";
 import { displayPricing, type DurationKey } from "@/app/lib/pricing";
-import { money, type Settings } from "@/lib/domain";
+import { money, type Service, type Settings } from "@/lib/domain";
 import OrderForm from "./order-form";
 const durationLabels: Record<DurationKey, string> = {
   daily: "Daily",
@@ -8,8 +10,13 @@ const durationLabels: Record<DurationKey, string> = {
 };
 export default function Home({ config }: { config: Settings }) {
   const pricing = displayPricing(config);
+  const [service, setService] = useState<Service>(config.available[0]);
+  const [requestSaved, setRequestSaved] = useState(false);
   return (
     <main>
+      <a className="skip-link" href="#order">
+        Skip to order form
+      </a>
       <nav className="site-nav" aria-label="Main navigation">
         <a className="wordmark" href="#top" aria-label="Done For Teachers home">
           <span className="wordmark-mark">DFT</span>
@@ -154,16 +161,34 @@ export default function Home({ config }: { config: Settings }) {
                     <span>per unit</span>
                   </div>
                 )}
-                <a href="#order" className="card-link">
-                  Choose this <span aria-hidden="true">↗</span>
+                <a
+                  href="#order"
+                  className="card-link"
+                  aria-label={
+                    requestSaved ? "View request" : `Choose ${item.label}`
+                  }
+                  onClick={() => {
+                    if (!requestSaved) setService(key as Service);
+                    requestAnimationFrame(() =>
+                      document
+                        .getElementById(
+                          requestSaved ? "order-review" : "order-service",
+                        )
+                        ?.focus({ preventScroll: true }),
+                    );
+                  }}
+                >
+                  {requestSaved ? "View request" : "Choose this"}{" "}
+                  <span aria-hidden="true">↗</span>
                 </a>
               </article>
             ))}
         </div>
         <p className="pricing-footnote">
-          Need it sooner? Rush service is available for an additional{" "}
-          {money(pricing.rush.flat)}. Contact us about revision scope before
-          ordering.
+          {config.rushAvailable
+            ? `Need it sooner? Rush service is available for an additional ${money(pricing.rush.flat)}. `
+            : "Rush service is currently unavailable. "}
+          Contact us about revision scope before ordering.
         </p>
       </section>
       <section className="why-band">
@@ -251,7 +276,12 @@ export default function Home({ config }: { config: Settings }) {
             </p>
           </div>
         </div>
-        <OrderForm config={config} />
+        <OrderForm
+          config={config}
+          service={service}
+          onServiceChange={setService}
+          onLockChange={setRequestSaved}
+        />
       </section>
       <section className="section faq-section" id="faq">
         <div className="section-heading">
@@ -266,8 +296,10 @@ export default function Home({ config }: { config: Settings }) {
           <details open>
             <summary>How quickly will I receive my materials?</summary>
             <p>
-              {config.turnaroundMessage} Rush service, when available, costs{" "}
-              {money(config.prices.rush)}.
+              {config.turnaroundMessage}{" "}
+              {config.rushAvailable
+                ? `Rush service costs ${money(config.prices.rush)}.`
+                : "Rush service is currently unavailable."}
             </p>
           </details>
           <details>
@@ -321,6 +353,7 @@ export default function Home({ config }: { config: Settings }) {
         <div className="footer-bottom">
           <span>© 2026 Done For Teachers</span>
           <a href="/policies">Privacy & order terms</a>
+          <a href="/owner">Owner sign-in</a>
           <a href="#top">Back to top ↑</a>
         </div>
       </footer>

@@ -29,6 +29,19 @@ export function env() {
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) throw new Error("Server configuration unavailable");
   const e = parsed.data;
+  const supabaseOrigin = new URL(e.SUPABASE_URL);
+  if (
+    supabaseOrigin.username ||
+    supabaseOrigin.password ||
+    supabaseOrigin.search ||
+    supabaseOrigin.hash ||
+    supabaseOrigin.pathname !== "/" ||
+    !["http:", "https:"].includes(supabaseOrigin.protocol)
+  )
+    throw new Error(
+      "SUPABASE_URL must be the project origin without an API path",
+    );
+  e.SUPABASE_URL = supabaseOrigin.origin;
   const origin = new URL(e.APP_URL);
   if (
     origin.username ||

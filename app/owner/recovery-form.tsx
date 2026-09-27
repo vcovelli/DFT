@@ -1,5 +1,7 @@
 "use client";
 import { useState, useRef, type FormEvent } from "react";
+import { requestJson } from "@/app/lib/request";
+import { readableStatus } from "@/app/lib/labels";
 import { useRouter } from "next/navigation";
 type EmailReview = { id: string; kind: string };
 export default function RecoveryForm({
@@ -12,10 +14,14 @@ export default function RecoveryForm({
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   const creditKey = useRef("");
+  const locked = useRef(false);
+  const [failed, setFailed] = useState(false);
   const router = useRouter();
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    if (locked.current) return;
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
     const action = String(form.get("action"));
     if (
       !window.confirm(
@@ -25,6 +31,8 @@ export default function RecoveryForm({
       )
     )
       return;
+    locked.current = true;
+    setFailed(false);
     setBusy(true);
     setMessage("");
     try {
@@ -57,38 +65,41 @@ export default function RecoveryForm({
           externalId: form.get("externalId"),
           confirmed: true,
         };
-      const response = await fetch(`/api/owner/orders/${id}/recovery`, {
+      await requestJson(`/api/owner/orders/${id}/recovery`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      if (action === "credit") formElement.reset();
       setMessage("Saved and reconciled.");
       creditKey.current = "";
       router.refresh();
     } catch (e) {
+      setFailed(true);
       setMessage(e instanceof Error ? e.message : "Recovery unavailable.");
     } finally {
       setBusy(false);
+      locked.current = false;
     }
   }
   return (
-    <section className="owner-card">
+    <section className="owner-card" aria-busy={busy}>
       <h2>Adjustments & recovery</h2>
       <details>
         <summary>Record a credit before invoicing</summary>
         <form onSubmit={submit}>
-          <input type="hidden" name="action" value="credit" />
-          <label>
-            Credit in dollars
-            <input name="amount" required inputMode="decimal" />
-          </label>
-          <label>
-            Reason
-            <input name="reason" minLength={3} maxLength={300} required />
-          </label>
-          <button disabled={busy}>Confirm credit</button>
+          <fieldset disabled={busy} className="settings-fields">
+            <input type="hidden" name="action" value="credit" />
+            <label>
+              Credit in dollars
+              <input name="amount" required inputMode="decimal" />
+            </label>
+            <label>
+              Reason
+              <input name="reason" minLength={3} maxLength={300} required />
+            </label>
+            <button disabled={busy}>Confirm credit</button>
+          </fieldset>
         </form>
       </details>
       <details>
@@ -99,44 +110,59 @@ export default function RecoveryForm({
           it does not create a replacement charge.
         </p>
         <form onSubmit={submit}>
-          <label>
-            Object
-            <select name="action">
-              <option value="checkout">Checkout Session</option>
-              <option value="invoice">Balance invoice</option>
-            </select>
-          </label>
-          <label>
-            Stripe object ID
-            <input name="externalId" required placeholder="cs_test_… or in_…" />
-          </label>
-          <button disabled={busy}>Verify and reconnect</button>
+          <fieldset disabled={busy} className="settings-fields">
+            <label>
+              Object
+              <select name="action">
+                <option value="checkout">Checkout Session</option>
+                <option value="invoice">Balance invoice</option>
+              </select>
+            </label>
+            <label>
+              Stripe object ID
+              <input
+                name="externalId"
+                required
+                placeholder="cs_test_… or in_…"
+              />
+            </label>
+            <button disabled={busy}>Verify and reconnect</button>
+          </fieldset>
         </form>
       </details>
       {emails.map((email) => (
         <form onSubmit={submit} key={email.id}>
-          <h3>Review {email.kind} email</h3>
-          <p>
-            Check Resend for this order reference before authorizing another
-            email.
-          </p>
-          <input type="hidden" name="action" value="email" />
-          <input type="hidden" name="emailId" value={email.id} />
-          <label>
-            Verified provider outcome
-            <select name="resolution">
-              <option value="accepted">
-                Resend accepted the original email
-              </option>
-              <option value="not_sent">
-                Resend did not accept it — authorize a new email
-              </option>
-            </select>
-          </label>
-          <button disabled={busy}>Record reviewed outcome</button>
+          <fieldset disabled={busy} className="settings-fields">
+            <h3>Review {readableStatus(email.kind).toLowerCase()}</h3>
+            <p>
+              Check Resend for this order reference before authorizing another
+              email.
+            </p>
+            <input type="hidden" name="action" value="email" />
+            <input type="hidden" name="emailId" value={email.id} />
+            <label>
+              Verified provider outcome
+              <select name="resolution">
+                <option value="accepted">
+                  Resend accepted the original email
+                </option>
+                <option value="not_sent">
+                  Resend did not accept it — authorize a new email
+                </option>
+              </select>
+            </label>
+            <button disabled={busy}>Record reviewed outcome</button>
+          </fieldset>
         </form>
       ))}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p
+          className={`form-feedback ${failed ? "is-error" : "is-success"}`}
+          role={failed ? "alert" : "status"}
+        >
+          {message}
+        </p>
+      )}
     </section>
   );
 }

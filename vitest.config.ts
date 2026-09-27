@@ -11,6 +11,6 @@ export default defineConfig({
   },
   test: {
     fileParallelism: false,
-    exclude: ["tests/browser/**", "node_modules/**"],
+    exclude: ["tests/ui/**", "tests/browser/**", "node_modules/**"],
   },
 });
