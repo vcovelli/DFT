@@ -49,3 +49,6 @@ next-env.d.ts
 /backups/
 *.dump
 *.sql.gz
+
+# Local Supabase CA download; runtime uses DATABASE_CA_CERT.
+/prod-ca-2021.crt
