@@ -65,6 +65,12 @@ Only explicit owner authorization can reopen production.
   new intake and checkout. Database failures deny writes. Checkout checks the pause
   controls and private bucket before contacting Stripe. Provider errors cannot
   generate a successful checkout response. Maintenance probes Stripe and Storage.
+- For test orders before domain verification, set ALLOW_TEST_EMAIL_FAILURES=true.
+  This ignores only the email-backlog gate, and only with a sk_test_ Stripe key,
+  ALLOW_LIVE_PAYMENTS=false, and SHOW_DEMO_BANNER=true explicitly set. The deployment
+  switch, owner pause, policy approval, and maintenance checks still apply.
+  Failed messages remain queued and visible; this does not fix email delivery.
+  Set the option back to false and clear the backlog before customer launch.
 - No provider health request can predict an imminent quota limit or guarantee email
   delivery. Resend failures are detected on actual durable sends; a payment already
   in flight can finish before that failure is observed. Its order and outbox remain

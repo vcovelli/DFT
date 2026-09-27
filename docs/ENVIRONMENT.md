@@ -41,3 +41,11 @@ and PGPASSFILE can locate them) and encrypted backup destination. These are not
 application runtime variables. Provider MFA recovery codes, registrar keys, Stripe
 bank details and mailbox passwords stay in the business password manager, not this
 repository. Record *who owns each credential and when it was rotated*, never its value.
+
+For testing before email setup, `ALLOW_TEST_EMAIL_FAILURES=true` permits new
+orders and checkout despite failed notifications only when `STRIPE_SECRET_KEY`
+starts with `sk_test_`, `ALLOW_LIVE_PAYMENTS=false`, and `SHOW_DEMO_BANNER=true`.
+Default: false. Keep `ORDERING_ENABLED=true`, approve policies, and unpause in
+Business settings to test. Maintenance must remain healthy. Redeploy after
+changing hosting variables. Disable this exception before launch; pending emails
+remain queued and email delivery still needs verification.

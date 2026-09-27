@@ -1,4 +1,10 @@
 import "server-only";
+import { classifyEmailFailure, type EmailFailureCode } from "../email-errors";
+class EmailDeliveryError extends Error {
+  constructor(public code: EmailFailureCode) {
+    super(code);
+  }
+}
 import { db, transaction, type DB } from "./db";
 import type { Order } from "./orders";
 import { money } from "../domain";
@@ -84,7 +90,10 @@ export const sendMail: MailSender = async (message, key) => {
     }),
     signal: AbortSignal.timeout(5000),
   });
-  if (!response.ok) throw new Error("mail_provider_error");
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    throw new EmailDeliveryError(classifyEmailFailure(response.status, body));
+  }
   const result = await response.json();
   if (typeof result.id !== "string") throw new Error("mail_provider_error");
   return result.id;
@@ -117,10 +126,10 @@ export async function attemptEmail(
       "UPDATE email_outbox SET provider_id=$2,sent_at=now(),attempts=attempts+1,last_error=null WHERE id=$1",
       [id, providerId],
     );
-  } catch {
+  } catch (error) {
     await tx.query(
-      "UPDATE email_outbox SET attempts=attempts+1,last_error='provider_error' WHERE id=$1",
-      [id],
+      "UPDATE email_outbox SET attempts=attempts+1,last_error=$2 WHERE id=$1",
+      [id, error instanceof EmailDeliveryError ? error.code : "provider_error"],
     );
   }
 }

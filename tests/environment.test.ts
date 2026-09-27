@@ -21,6 +21,7 @@ beforeEach(() => {
     "ORDERING_ENABLED",
     "SHOW_DEMO_BANNER",
     "ALLOW_LIVE_PAYMENTS",
+    "ALLOW_TEST_EMAIL_FAILURES",
     "VERCEL",
   ])
     vi.stubEnv(key, undefined);
@@ -31,6 +32,7 @@ it("defaults to paused ordering, visible demo banner and test-only payments", ()
     ORDERING_ENABLED: "false",
     SHOW_DEMO_BANNER: "true",
     ALLOW_LIVE_PAYMENTS: "false",
+    ALLOW_TEST_EMAIL_FAILURES: "false",
   });
 });
 it("rejects live keys unless explicitly authorized, and always rejects them on Vercel staging", () => {

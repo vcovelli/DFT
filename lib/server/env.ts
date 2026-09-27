@@ -23,6 +23,7 @@ const schema = z.object({
   RATE_LIMIT_SECRET: z.string().min(32),
   ORDERING_ENABLED: z.enum(["true", "false"]).default("false"),
   SHOW_DEMO_BANNER: z.enum(["true", "false"]).default("true"),
+  ALLOW_TEST_EMAIL_FAILURES: z.enum(["true", "false"]).default("false"),
   ALLOW_LIVE_PAYMENTS: z.enum(["true", "false"]).default("false"),
 });
 export function env() {

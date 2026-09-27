@@ -22,7 +22,7 @@ export default function SettingsForm({ config }: { config: Settings }) {
     if (locked.current) return;
     if (
       !window.confirm(
-        "Save these settings for new orders? Existing order prices will stay fixed. Unpausing opens ordering when policies are approved.",
+        "Save these settings for new orders? Existing order prices will stay fixed. Unpausing opens ordering once policies are approved, deployment ordering is enabled, and maintenance and email delivery are healthy.",
       )
     )
       return;

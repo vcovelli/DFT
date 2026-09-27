@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { emailFailureMessage } from "@/lib/email-errors";
 import { formatDate, readableStatus, statusTone } from "@/app/lib/labels";
 import { redirect } from "next/navigation";
 import { requireOwner } from "@/lib/server/auth";
@@ -9,6 +10,7 @@ import { money } from "@/lib/domain";
 import { Action, SignOut } from "./controls";
 import {
   orderingEnabled,
+  testEmailFailuresAllowed,
   requireOrderingAvailable,
 } from "@/lib/server/availability";
 import SettingsForm from "./settings-form";
@@ -76,7 +78,7 @@ export default async function Owner({
       ? {
           label: "Service needs attention",
           detail:
-            "Run maintenance and review pending notifications below before accepting new orders.",
+            "New orders stay closed while maintenance or email delivery needs attention. Unpausing in Business settings does not clear failed emails. Review Notifications & recovery below.",
         }
       : config.paused
         ? {
@@ -134,6 +136,13 @@ export default async function Owner({
           </span>
         </div>
         <p>{status.detail}</p>
+        {testEmailFailuresAllowed() && (
+          <p role="status" className="form-feedback">
+            Test orders can continue while emails fail. Notifications are still
+            queued and shown below. Verify your sending domain and turn off
+            ALLOW_TEST_EMAIL_FAILURES before opening to customers.
+          </p>
+        )}
         <p className="field-help">
           Last completed maintenance:{" "}
           {maintenance?.last_success_at
@@ -226,7 +235,7 @@ export default async function Owner({
             {n.review_required
               ? "Review required"
               : n.last_error
-                ? "Delivery failed — check email settings"
+                ? emailFailureMessage(n.last_error)
                 : "Queued"}
           </p>
         ))}

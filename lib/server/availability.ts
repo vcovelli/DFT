@@ -6,6 +6,16 @@ export function orderingEnabled() {
   return process.env.ORDERING_ENABLED === "true";
 }
 
+// This exception is opt-in and cannot apply to live payments.
+export function testEmailFailuresAllowed() {
+  return (
+    process.env.ALLOW_TEST_EMAIL_FAILURES === "true" &&
+    process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") === true &&
+    process.env.ALLOW_LIVE_PAYMENTS === "false" &&
+    process.env.SHOW_DEMO_BANNER === "true"
+  );
+}
+
 export async function requireOrderingAvailable(client: DB = db) {
   assert(orderingEnabled(), "New orders are currently paused.", 503);
   // Vercel staging retains its daily cron; production must run at least every two hours.
@@ -18,7 +28,7 @@ export async function requireOrderingAvailable(client: DB = db) {
     [age],
   );
   assert(
-    rows[0]?.fresh && rows[0]?.mail_ready,
+    rows[0]?.fresh && (rows[0]?.mail_ready || testEmailFailuresAllowed()),
     "Ordering is temporarily unavailable. Existing requests are saved; please retry later.",
     503,
   );

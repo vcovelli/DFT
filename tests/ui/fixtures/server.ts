@@ -58,6 +58,9 @@ export async function summary() {
 export function orderingEnabled() {
   return true;
 }
+export function testEmailFailuresAllowed() {
+  return false;
+}
 export async function requireOrderingAvailable() {}
 export const db = {
   async query(sql: string) {
